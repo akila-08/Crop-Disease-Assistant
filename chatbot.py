@@ -16,16 +16,16 @@ from sklearn.metrics import accuracy_score
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 
-# Define the Multimodal Vision Transformer (ViT) model
+
 class MultimodalViT(nn.Module):
     def __init__(self, num_numerical_features, num_classes, dropout_rate=0.3):
         super(MultimodalViT, self).__init__()
         
-        # Pretrained Vision Transformer
-        self.vit = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
-        self.vit.heads = nn.Identity()  # Remove default classification head
         
-        # Numerical feature encoder
+        self.vit = vit_b_16(weights=ViT_B_16_Weights.DEFAULT)
+        self.vit.heads = nn.Identity()  
+        
+        
         self.num_encoder = nn.Sequential(
             nn.Linear(num_numerical_features, 128),
             nn.ReLU(),
@@ -33,11 +33,11 @@ class MultimodalViT(nn.Module):
             nn.Dropout(dropout_rate)
         )
         
-        # Cross-attention layer
-        self.cross_attention = nn.MultiheadAttention(embed_dim=768, num_heads=8)  # ViT output dim is 768
-        self.cls_token = nn.Parameter(torch.randn(1, 1, 768))  # Learnable classification token
         
-        # Classification head
+        self.cross_attention = nn.MultiheadAttention(embed_dim=768, num_heads=8)  
+        self.cls_token = nn.Parameter(torch.randn(1, 1, 768))  
+        
+       
         self.fc = nn.Sequential(
             nn.Linear(768, 256),
             nn.ReLU(),
@@ -47,43 +47,43 @@ class MultimodalViT(nn.Module):
         )
     
     def forward(self, image, numerical_features):
-        # Extract image features from ViT
-        img_features = self.vit(image)  # Shape: (batch_size, 768)
-        img_features = img_features.unsqueeze(0)  # Shape: (1, batch_size, 768)
         
-        # Process numerical features
-        num_features = self.num_encoder(numerical_features)  # Shape: (batch_size, 128)
-        num_features = num_features.unsqueeze(0)  # Shape: (1, batch_size, 128)
+        img_features = self.vit(image)  
+        img_features = img_features.unsqueeze(0)  
         
-        # Pad numerical features to match ViT embedding size
-        num_features = nn.functional.pad(num_features, (0, 768 - 128))  # Shape: (1, batch_size, 768)
         
-        # Add CLS token for classification
+        num_features = self.num_encoder(numerical_features)  
+        num_features = num_features.unsqueeze(0)  
+        
+        
+        num_features = nn.functional.pad(num_features, (0, 768 - 128))  
+        
+       
         batch_size = image.size(0)
-        cls_tokens = self.cls_token.expand(-1, batch_size, -1)  # Shape: (1, batch_size, 768)
+        cls_tokens = self.cls_token.expand(-1, batch_size, -1)  
         
-        # Combine features for cross-attention
-        combined_features = torch.cat((cls_tokens, img_features, num_features), dim=0)  # Shape: (3, batch_size, 768)
         
-        # Apply cross-attention
+        combined_features = torch.cat((cls_tokens, img_features, num_features), dim=0)  
+        
+        
         attn_output, _ = self.cross_attention(cls_tokens, combined_features, combined_features)
         
-        # Final classification
-        output = self.fc(attn_output.squeeze(0))  # Shape: (batch_size, num_classes)
+        
+        output = self.fc(attn_output.squeeze(0))  
         return output
 
-# Initialize the model, optimizer, and loss function
-num_numerical_features = 7  # Adjust based on your dataset
-num_classes = 22  # Adjust based on the number of classes in your dataset
+# Initialize the model
+num_numerical_features = 7  
+num_classes = 22  
 model = MultimodalViT(num_numerical_features, num_classes)
 optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4)
 criterion = nn.CrossEntropyLoss()
 
-# Load the trained model weights
+
 model.load_state_dict(torch.load(r"C:\Users\Samridhaa\OneDrive\Desktop\New_DL\vit_multimodal_best.pth", map_location=torch.device('cpu')))
 model.eval()
 
-# Class mapping dictionary
+
 class_mapping = {
     0: 'Apple___Apple_scab', 1: 'Apple___Black_rot', 2: 'Apple___Cedar_apple_rust', 3: 'Apple___healthy',
     4: 'Blueberry___healthy', 5: 'Cherry_(including_sour)___Powdery_mildew', 6: 'Cherry_(including_sour)___healthy',
@@ -94,7 +94,7 @@ class_mapping = {
     18: 'Pepper,_bell___Bacterial_spot', 19: 'Pepper,_bell___healthy', 20: 'Potato___Early_blight', 21: 'Potato___healthy'
 }
 
-# Image preprocessing for ViT
+
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -106,8 +106,8 @@ class MultimodalCropDataset(Dataset):
         self.transform = transform
         self.scaler = scaler if scaler else StandardScaler()
         
-        # Standardize numerical features (excluding 'image_path' and 'Label')
-        numerical_cols = self.df.columns[:-2]  # Assuming last two are 'image_path' and 'Label'
+        
+        numerical_cols = self.df.columns[:-2]  
         if scaler is None:
             self.df[numerical_cols] = self.scaler.fit_transform(self.df[numerical_cols])
         else:
@@ -163,34 +163,34 @@ def evaluate_model(model, test_loader, criterion, device):
     val_acc = accuracy_score(targets, preds)
     return val_loss, val_acc, preds, targets
 
-# Function to predict leaf class using the ViT model
+
 def predict_leaf_class(image, numerical_features=None):
     image_tensor = transform(image).unsqueeze(0)
     if numerical_features is None:
-        numerical_features = torch.zeros((1, num_numerical_features))  # Default numerical features if not provided
+        numerical_features = torch.zeros((1, num_numerical_features))  
     with torch.no_grad():
         output = model(image_tensor, numerical_features)
         _, predicted = torch.max(output, 1)
         class_label = class_mapping[predicted.item()]
     return class_label
 
-# Initialize Text-to-Speech (TTS) engine
+
 engine = pyttsx3.init()
 engine.setProperty('rate', 150)
 
-# Function for text-to-speech
+
 def speak(text):
     engine.say(text)
     engine.runAndWait()
 
-# Gemini API Setup (multimodal)
+
 api_key = "AIzaSyAu-weudZlsrpiyCeqD8cbKI8OPTAMWKWs"
 chat_model = ChatGoogleGenerativeAI(
     model="models/gemini-1.5-pro-latest",
     google_api_key=api_key
 )
 
-# AI Chat Function (Text Only)
+
 def chat_with_ai(user_input):
     crop_restrict_prompt = (
         "You are a crop and plant disease assistant. "
@@ -203,7 +203,7 @@ def chat_with_ai(user_input):
     except Exception as e:
         return f"Error: {e}"
 
-# AI Chat Function (Image + Text)
+
 def analyze_image(image_obj, question):
     crop_restrict_prompt = (
         "You are a crop disease detection assistant. "
@@ -254,7 +254,7 @@ elif mode == "Image":
         image = Image.open(uploaded_image)
         st.image(image, caption="Uploaded Leaf", use_column_width=True)
 
-        # Handle disease/health/crop questions using ViT
+        
         if any(x in question.lower() for x in ["problem", "disease", "healthy", "crop", "what is this"]):
             vit_result = predict_leaf_class(image)
             st.info(f"ViT Prediction: {vit_result}")

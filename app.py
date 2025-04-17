@@ -13,7 +13,6 @@ import torchvision.transforms as transforms
 from torchvision.models.vision_transformer import vit_b_16, ViT_B_16_Weights
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# --- ViT Model Class ---
 class MultimodalViT(nn.Module):
     def __init__(self, num_numerical_features, num_classes, dropout_rate=0.3):
         super(MultimodalViT, self).__init__()
@@ -46,14 +45,14 @@ class MultimodalViT(nn.Module):
         output = self.fc(attn_output.squeeze(0))
         return output
 
-# --- Init Model ---
+
 num_numerical_features = 7
 num_classes = 22
 model = MultimodalViT(num_numerical_features, num_classes)
 model.load_state_dict(torch.load("vit_multimodal_best.pth", map_location='cpu'))
 model.eval()
 
-# --- Class Mapping ---
+
 class_mapping = {
     0: 'Apple__Apple_scab', 1: 'Apple_Black_rot', 2: 'Apple_Cedar_apple_rust', 3: 'Apple__healthy',
     4: 'Blueberry__healthy', 5: 'Cherry(including_sour)Powdery_mildew', 6: 'Cherry(including_sour)_healthy',
@@ -64,14 +63,14 @@ class_mapping = {
     18: 'Pepper,bell_Bacterial_spot', 19: 'Pepper,_bell_healthy', 20: 'Potato_Early_blight', 21: 'Potato__healthy'
 }
 
-# --- Image Preprocessing ---
+
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 ])
 
-# --- Prediction Function ---
+
 @torch.no_grad()
 def predict_leaf_class(image, numerical_features=None):
     image_tensor = transform(image).unsqueeze(0)
@@ -83,7 +82,7 @@ def predict_leaf_class(image, numerical_features=None):
     class_label = class_mapping[predicted.item()]
     return class_label, confidence.item()
 
-# --- TTS ---
+
 engine = pyttsx3.init()
 engine.setProperty('rate', 150)
 
@@ -91,7 +90,7 @@ def speak(text):
     engine.say(text)
     engine.runAndWait()
 
-# --- Gemini Setup ---
+
 api_key = "AIzaSyAu-weudZlsrpiyCeqD8cbKI8OPTAMWKWs"
 chat_model = ChatGoogleGenerativeAI(
     model="models/gemini-1.5-pro-latest",
@@ -111,7 +110,7 @@ def chat_with_ai(user_input, history=""):
     except Exception as e:
         return f"Error: {e}"
 
-# --- Session State Initialization ---
+
 if 'conversation_history' not in st.session_state:
     st.session_state.conversation_history = []
 if 'uploaded_image' not in st.session_state:
@@ -121,11 +120,11 @@ if 'vit_result' not in st.session_state:
 if 'confidence' not in st.session_state:
     st.session_state.confidence = None
 
-# --- Streamlit UI ---
+
 st.set_page_config(page_title="Crop Health Assistant", page_icon="🌿")
 st.title("🌿 Crop Health Assistant")
 
-# Display conversation history
+
 if st.session_state.conversation_history:
     st.markdown("### Conversation History")
     for entry in st.session_state.conversation_history:
@@ -194,7 +193,7 @@ elif mode == "Image":
         if st.button("Speak Answer"):
             speak(response)
 
-# --- Clear History Button ---
+
 if st.button("Clear Conversation History"):
     st.session_state.conversation_history = []
     st.session_state.uploaded_image = None
@@ -202,14 +201,14 @@ if st.button("Clear Conversation History"):
     st.session_state.confidence = None
     st.rerun()
 
-# --- Model Metrics ---
+
 st.markdown("---")
 st.markdown("<h2 id='metrics'>📊 Model Evaluation</h2>", unsafe_allow_html=True)
 
 if st.button("📈 Show Model Accuracy & Plots"):
     st.subheader("Model Evaluation")
 
-    # Sample Data (Mocking real test data — Replace this with your real test set)
+    
     num_samples = 100
     X_image_test = torch.randn(num_samples, 3, 224, 224)
     X_numerical_test = torch.randn(num_samples, num_numerical_features)
@@ -223,16 +222,13 @@ if st.button("📈 Show Model Accuracy & Plots"):
             pred = output.argmax(dim=1).item()
             y_pred.append(pred)
 
-    # Accuracy
     accuracy = accuracy_score(y_test, y_pred)
     st.markdown(f"### ✅ Model Accuracy: `{accuracy * 100:.2f}%`")
 
-    # Classification Report
     report_dict = classification_report(y_test, y_pred, target_names=list(class_mapping.values()), output_dict=True)
     st.markdown("#### 📋 Classification Report:")
     st.dataframe(report_dict)
 
-    # Confusion Matrix
     st.markdown("#### 🔀 Confusion Matrix:")
     cm = confusion_matrix(y_test, y_pred)
     fig, ax = plt.subplots(figsize=(10, 8))
